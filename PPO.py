@@ -71,7 +71,22 @@ class ActorCritic(nn.Module):
                         nn.Tanh(),
                         nn.Linear(64, 1)
                     )
-        
+    def act_deterministic(self, state):
+        """
+        评估用：连续动作直接取均值，不加探索噪声
+        """
+        if self.has_continuous_action_space:
+            action_mean = self.actor(state)
+            state_val = self.critic(state)
+            # 为了接口统一，返回 (action, logprob, state_val)
+            return action_mean, None, state_val
+        else:
+            action_probs = self.actor(state)
+            action = torch.argmax(action_probs, dim=-1, keepdim=True)
+            state_val = self.critic(state)
+            return action, None, state_val
+
+
     def set_action_std(self, new_action_std):
         if self.has_continuous_action_space:
             self.action_var = torch.full((self.action_dim,), new_action_std * new_action_std).to(device)
@@ -146,6 +161,21 @@ class PPO:
         
         self.MseLoss = nn.MSELoss()
 
+    def select_action_eval(self, state):
+        """
+        测试用：不写入 buffer，不加噪声
+        """
+        state = torch.FloatTensor(state).to(device)
+
+        with torch.no_grad():
+            action, _, state_val = self.policy_old.act_deterministic(state)
+
+        if self.has_continuous_action_space:
+            action_cpu = action.detach().cpu().view(-1)
+            return action_cpu.tolist()
+        else:
+            return action.item()
+        
     def set_action_std(self, new_action_std):
         if self.has_continuous_action_space:
             self.action_std = new_action_std
@@ -184,7 +214,9 @@ class PPO:
             self.buffer.logprobs.append(action_logprob)
             self.buffer.state_values.append(state_val)
 
-            return action.detach().cpu().numpy().flatten()
+            # ======= 这里改掉 numpy() =======
+            action_cpu = action.detach().cpu().view(-1)   # [act_dim]
+            return action_cpu.tolist()                    # 返回 Python list，比如 [0.123]
         else:
             with torch.no_grad():
                 state = torch.FloatTensor(state).to(device)
@@ -196,6 +228,7 @@ class PPO:
             self.buffer.state_values.append(state_val)
 
             return action.item()
+
 
     def update(self):
         # Monte Carlo estimate of returns

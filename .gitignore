@@ -1,0 +1,9 @@
+build/
+devel/
+*.pyc
+*.log
+__pycache__/
+.vscode/
+*.npy
+*.pth
+*.csv

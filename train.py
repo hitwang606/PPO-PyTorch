@@ -16,7 +16,7 @@ def train():
     print("============================================================================================")
 
     ####### initialize environment hyperparameters ######
-    env_name = "RoboschoolWalker2d-v1"
+    env_name = "BipedalWalker-v3"
 
     has_continuous_action_space = True  # continuous action space; else discrete
 
